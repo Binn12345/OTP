@@ -36,4 +36,26 @@ class LoginController extends Controller
     {
         $this->middleware('guest')->except('logout');
     }
+
+    protected function authenticated(Request $request, $user)
+    {
+        // $otp = rand(100000, 999999); // Generate OTP
+        // $user->otp = $otp;
+        // $user->is_verified = false;
+        // $user->save();
+
+        // // Send OTP - use email, SMS, etc. For demo:
+        // \Log::info("OTP for {$user->email}: {$otp}");
+
+        // return redirect('/verify-otp');
+
+        $otp = rand(100000, 999999);
+        $user->otp = $otp;
+        $user->is_verified = false;
+        $user->save();
+
+        Mail::to($user->email)->send(new OtpMail($otp));
+
+        return redirect('/verify-otp');
+    }
 }

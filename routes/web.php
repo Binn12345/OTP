@@ -18,3 +18,12 @@ Route::get('/', function () {
 Auth::routes();
 
 Route::get('/home', 'HomeController@index')->name('home');
+
+Route::get('/verify-otp', 'OtpController@showForm')->name('otp.form');
+Route::post('/verify-otp', 'OtpController@verify')->name('otp.verify');
+
+
+Route::post('/resend-otp', 'OtpController@resend')->name('otp.resend');
+
+
+
