@@ -17,22 +17,51 @@ class OtpController extends Controller
 
     public function verify(Request $request)
     {
-        $request->validate(['otp' => 'required']);
+        // Validate the OTP input (ensure all fields are filled)
+        $request->validate(['otp' => 'required|array|min:6|max:6']); // Ensure the OTP has 6 digits
 
-
+        // Combine the OTP input (from 6 separate fields) into a single string
         $otp = implode('', $request->otp);
+
+        // Merge the OTP value into the request for further use
         $request->merge(['otp' => $otp]);
-        // dd($request->otp);
+
+        // Get the authenticated user
         $user = auth()->user();
+
+        // Check if the OTP entered by the user matches the OTP stored in the database
         if ($user->otp === $request->otp) {
+            // OTP is correct, verify the user
             $user->is_verified = true;
-            $user->otp = null;
+            $user->otp = null; // Clear the OTP after verification
             $user->save();
 
-            return redirect('/home')->with('status', 'OTP Verified!');
-        }
+            // Log the verification attempt as 'verified'
+            OtpLog::create([
+                'user_id' => $user->id,
+                'otp' => $request->otp,
+                'email' => $user->email,
+                'status' => 'verified', // Log as 'verified' since the OTP is correct
+                'user_agent' => request()->header('User-Agent'), // Log the user agent
+                'ip_address' => request()->ip(), // Log the IP address
+            ]);
 
-        return back()->withErrors(['otp' => 'Invalid OTP.']);
+            // Redirect the user with a success message
+            return redirect('/home')->with('status', 'OTP Verified!');
+        } else {
+            // OTP is incorrect, log as 'failed'
+            OtpLog::create([
+                'user_id' => $user->id,
+                'otp' => $request->otp,
+                'email' => $user->email,
+                'status' => 'failed', // Log as 'failed' because the OTP was incorrect
+                'user_agent' => request()->header('User-Agent'), // Log the user agent
+                'ip_address' => request()->ip(), // Log the IP address
+            ]);
+
+            // Return back with an error message if the OTP is invalid
+            return back()->withErrors(['otp' => 'Invalid OTP.']);
+        }
     }
 
     public function resend()
@@ -68,28 +97,30 @@ class OtpController extends Controller
         $user->otp = $otp;
         $user->save();
 
-        // Send the OTP via email
-        Mail::to($user->email)->send(new OtpMail($otp));
+        // Check if the user already has an OTP that has been sent (you can adjust this condition if needed)
+        $existingOtpLog = OtpLog::where('user_id', $user->id)->where('status', 'sent')->first();
 
-        // Log the OTP sent attempt
-        OtpLog::create([
-            'user_id' => $user->id,
-            'otp' => $otp,
-            'email' => $user->email,
-            'status' => 'sent',  // Status is 'sent' since it's the first OTP generation
-            'user_agent' => $userAgent,  // Log the user agent
-            'ip_address' => $ipAddress,  // Log the IP address
-        ]);
-
-        // Log the resend attempt
-        OtpLog::create([
-            'user_id' => $user->id,
-            'otp' => $otp,
-            'email' => $user->email,
-            'status' => 'resend',  // Status is 'resend' because the user requested a new OTP
-            'user_agent' => $userAgent,  // Log the user agent
-            'ip_address' => $ipAddress,  // Log the IP address
-        ]);
+        if ($existingOtpLog) {
+            // Log the resend attempt if an OTP has already been sent to this user
+            OtpLog::create([
+                'user_id' => $user->id,
+                'otp' => $otp,
+                'email' => $user->email,
+                'status' => 'resend',  // Status is 'resend' because the user requested a new OTP
+                'user_agent' => $userAgent,  // Log the user agent
+                'ip_address' => $ipAddress,  // Log the IP address
+            ]);
+        } else {
+            // Log the OTP sent attempt if this is the first OTP generation
+            OtpLog::create([
+                'user_id' => $user->id,
+                'otp' => $otp,
+                'email' => $user->email,
+                'status' => 'sent',  // Status is 'sent' since it's the first OTP generation
+                'user_agent' => $userAgent,  // Log the user agent
+                'ip_address' => $ipAddress,  // Log the IP address
+            ]);
+        }
 
         // Set a cooldown for 30 seconds
         Cache::put($cacheKey, time() + 30, 30);

@@ -56,6 +56,27 @@
                 });
             });
 
+            inputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => {
+                    // Block non-numeric input
+                    if (!/^\d$/.test(input.value)) {
+                        input.value = ''; // Clear invalid input
+                    }
+
+                    // If input is valid and contains 1 digit, focus the next input
+                    if (input.value.length === 1 && index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    }
+                });
+
+                // Handle the Backspace key to move to the previous input
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && input.value === '' && index > 0) {
+                        inputs[index - 1].focus();
+                    }
+                });
+            });
+
             // Attach paste only to the first input
             inputs[0].addEventListener('paste', (e) => {
                 const paste = (e.clipboardData || window.clipboardData).getData('text');
@@ -67,6 +88,22 @@
                         }
                     });
                     inputs[5].focus();
+                }
+            });
+
+            // Allow pasting of 6-digit numbers only
+            inputs[0].addEventListener('paste', (e) => {
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+
+                // Allow only if the pasted content is exactly 6 digits
+                if (/^\d{6}$/.test(paste)) {
+                    e.preventDefault(); // Prevent the default paste action
+                    paste.split('').forEach((char, i) => {
+                        if (inputs[i]) {
+                            inputs[i].value = char;
+                        }
+                    });
+                    inputs[5].focus(); // Focus the last input field after paste
                 }
             });
         });
@@ -95,7 +132,7 @@
                         cooldownMessage.style.display = 'block';
 
                         if (data.status === 'error') {
-                           
+
                             let secondsLeft = data.seconds_left;
                             cooldownMessage.classList.remove('text-success');
                             cooldownMessage.classList.add('text-danger');
@@ -122,7 +159,7 @@
                             setTimeout(() => {
                                 cooldownMessage.style.display = 'none';
                                 resendButton.disabled = false;
-                            }, 3000); 
+                            }, 3000);
                         }
                     })
                     .catch(error => {
